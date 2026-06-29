@@ -69,7 +69,7 @@ onMounted(load);
           <div class="shelf-copy">
             <h3>{{ book.title }}</h3>
             <p>{{ book.author || "佚名" }} · 第 {{ (book.progress.chapter_index || 0) + 1 }} 章</p>
-            <div class="progress-track"><span :style="{ width: `${Math.round((book.progress.position || 0) * 100)}%` }" /></div>
+            <div class="progress-track"><span :style="{ width: `${Math.round((book.progress.progress || 0) * 100)}%` }" /></div>
             <small>{{ book.last_read_at ? new Date(book.last_read_at).toLocaleDateString() : "尚未开始" }}</small>
           </div>
         </article>

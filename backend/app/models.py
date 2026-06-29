@@ -39,7 +39,9 @@ class Chapter(Base):
     __tablename__ = "chapters"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    book_id: Mapped[int] = mapped_column(ForeignKey("bookshelf.id"), index=True)
+    book_id: Mapped[int] = mapped_column(
+        ForeignKey("bookshelf.id", ondelete="CASCADE"), index=True
+    )
     source: Mapped[str] = mapped_column(String(80))
     external_chapter_id: Mapped[str] = mapped_column(String(160))
     chapter_index: Mapped[int] = mapped_column(Integer)
@@ -79,7 +81,7 @@ class DownloadJob(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     book_id: Mapped[int] = mapped_column(
-        ForeignKey("bookshelf.id"), index=True, unique=True
+        ForeignKey("bookshelf.id", ondelete="CASCADE"), index=True, unique=True
     )
     status: Mapped[str] = mapped_column(String(30), default="queued")
     completed: Mapped[int] = mapped_column(Integer, default=0)

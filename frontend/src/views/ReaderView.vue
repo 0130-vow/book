@@ -17,7 +17,7 @@ interface ReaderSettings {
   fontSize: number;
   lineHeight: number;
   margin: number;
-  theme: "white" | "warm" | "gray" | "dark";
+  theme: "auto" | "white" | "warm" | "gray" | "dark";
   mode: "scroll" | "page";
 }
 
@@ -56,8 +56,13 @@ function persistSettings() {
 
 function position() {
   const el = readerBody.value;
-  if (!el || el.scrollHeight <= el.clientHeight) return 0;
-  return Math.min(1, el.scrollTop / (el.scrollHeight - el.clientHeight));
+  if (!el) return 0;
+  const horizontal = settings.value.mode === "page";
+  const extent = horizontal
+    ? el.scrollWidth - el.clientWidth
+    : el.scrollHeight - el.clientHeight;
+  if (extent <= 0) return 0;
+  return Math.min(1, (horizontal ? el.scrollLeft : el.scrollTop) / extent);
 }
 
 async function save() {
@@ -67,6 +72,7 @@ async function save() {
     source: source.value,
     chapter_id: chapter.value.id,
     chapter_index: chapterIndex.value,
+    total_chapters: detail.value?.chapters.length || 1,
     position: position(),
     mode: settings.value.mode
   });
@@ -82,8 +88,12 @@ async function openChapter(index: number, restorePosition = 0) {
   directoryOpen.value = false;
   await nextTick();
   if (readerBody.value) {
-    const max = readerBody.value.scrollHeight - readerBody.value.clientHeight;
-    readerBody.value.scrollTop = max * restorePosition;
+    const horizontal = settings.value.mode === "page";
+    const max = horizontal
+      ? readerBody.value.scrollWidth - readerBody.value.clientWidth
+      : readerBody.value.scrollHeight - readerBody.value.clientHeight;
+    if (horizontal) readerBody.value.scrollLeft = max * restorePosition;
+    else readerBody.value.scrollTop = max * restorePosition;
   }
   loading.value = false;
 }
@@ -96,12 +106,30 @@ function onTouchEnd(event: TouchEvent) {
   if (settings.value.mode !== "page") return;
   const delta = event.changedTouches[0].clientX - touchStart.value;
   if (Math.abs(delta) < 70) return;
-  openChapter(chapterIndex.value + (delta < 0 ? 1 : -1));
+  turnPage(delta < 0 ? 1 : -1);
 }
 
 function toggleNight() {
   settings.value.theme = settings.value.theme === "dark" ? "warm" : "dark";
   persistSettings();
+}
+
+function turnPage(direction: -1 | 1) {
+  const el = readerBody.value;
+  if (!el || settings.value.mode !== "page") {
+    openChapter(chapterIndex.value + direction);
+    return;
+  }
+  const max = el.scrollWidth - el.clientWidth;
+  const next = Math.max(0, Math.min(max, el.scrollLeft + direction * el.clientWidth));
+  if (
+    (direction < 0 && el.scrollLeft <= 1) ||
+    (direction > 0 && el.scrollLeft >= max - 1)
+  ) {
+    openChapter(chapterIndex.value + direction);
+    return;
+  }
+  el.scrollTo({ left: next, behavior: "smooth" });
 }
 
 onMounted(async () => {
@@ -152,7 +180,7 @@ onBeforeUnmount(() => {
     </main>
 
     <footer class="reader-toolbar">
-      <button type="button" title="上一章" :disabled="chapterIndex === 0" @click="openChapter(chapterIndex - 1)">
+      <button type="button" title="向前" :disabled="chapterIndex === 0 && position() === 0" @click="turnPage(-1)">
         <ChevronLeft :size="22" />
       </button>
       <button type="button" title="目录" @click="directoryOpen = true"><List :size="21" /></button>
@@ -160,9 +188,8 @@ onBeforeUnmount(() => {
       <button type="button" title="阅读设置" @click="settingsOpen = true"><SlidersHorizontal :size="20" /></button>
       <button
         type="button"
-        title="下一章"
-        :disabled="chapterIndex >= (detail?.chapters.length || 1) - 1"
-        @click="openChapter(chapterIndex + 1)"
+        title="向后"
+        @click="turnPage(1)"
       >
         <ChevronRight :size="22" />
       </button>
@@ -191,7 +218,7 @@ onBeforeUnmount(() => {
       <van-slider v-model="settings.margin" :min="12" :max="48" @change="persistSettings" />
       <div class="theme-swatches" aria-label="阅读背景">
         <button
-          v-for="item in ['white', 'warm', 'gray', 'dark'] as const"
+          v-for="item in ['auto', 'white', 'warm', 'gray', 'dark'] as const"
           :key="item"
           :class="[item, { active: settings.theme === item }]"
           type="button"

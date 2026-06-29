@@ -52,12 +52,14 @@ def test_search_detail_and_reading_flow(client, auth_headers):
             "source": book["source"],
             "chapter_id": "0",
             "chapter_index": 0,
+            "total_chapters": 3,
             "position": 0.35,
             "mode": "scroll",
         },
     )
     assert progress.status_code == 200
     assert progress.json()["position"] == 0.35
+    assert progress.json()["progress"] == 0.35 / 3
 
 
 def test_download_book(client, auth_headers):
@@ -78,3 +80,32 @@ def test_download_book(client, auth_headers):
     ).json()
     assert status["status"] == "completed"
     assert status["completed"] == status["total"] == 3
+
+    assert client.delete(f"/api/bookshelf/{shelf['id']}", headers=auth_headers).status_code == 204
+    assert client.get("/api/download", headers=auth_headers).json() == []
+
+
+def test_docs_are_disabled_when_auth_is_enabled(client):
+    assert client.get("/docs").status_code == 404
+
+
+def test_disabled_source_is_excluded_from_search(client, auth_headers):
+    response = client.patch(
+        "/api/sources/classics-b",
+        headers=auth_headers,
+        json={"enabled": False},
+    )
+    assert response.status_code == 200
+    assert response.json()["enabled"] is False
+
+    results = client.get(
+        "/api/search", params={"keyword": "三国"}, headers=auth_headers
+    ).json()
+    assert {item["source"] for item in results} == {"classics-a"}
+
+    disabled = client.get(
+        "/api/search",
+        params={"keyword": "三国", "source": "classics-b"},
+        headers=auth_headers,
+    )
+    assert disabled.status_code == 409

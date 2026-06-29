@@ -61,7 +61,7 @@ watch(source, () => {
       <div class="source-filter">
         <button :class="{ active: !source }" type="button" @click="source = ''">全部来源</button>
         <button
-          v-for="item in sources"
+          v-for="item in sources.filter((sourceItem) => sourceItem.enabled)"
           :key="item.identifier"
           :class="{ active: source === item.identifier }"
           type="button"

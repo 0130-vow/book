@@ -44,6 +44,8 @@ export interface Progress {
   chapter_id?: string;
   chapter_index?: number;
   position?: number;
+  total_chapters?: number;
+  progress?: number;
   mode?: "scroll" | "page";
   updated_at?: string;
 }

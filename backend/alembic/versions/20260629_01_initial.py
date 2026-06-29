@@ -52,7 +52,7 @@ def upgrade() -> None:
     op.create_table(
         "chapters",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("book_id", sa.Integer(), sa.ForeignKey("bookshelf.id"), nullable=False),
+        sa.Column("book_id", sa.Integer(), sa.ForeignKey("bookshelf.id", ondelete="CASCADE"), nullable=False),
         sa.Column("source", sa.String(80), nullable=False),
         sa.Column("external_chapter_id", sa.String(160), nullable=False),
         sa.Column("chapter_index", sa.Integer(), nullable=False),
@@ -65,7 +65,7 @@ def upgrade() -> None:
     op.create_table(
         "download_jobs",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("book_id", sa.Integer(), sa.ForeignKey("bookshelf.id"), nullable=False, unique=True),
+        sa.Column("book_id", sa.Integer(), sa.ForeignKey("bookshelf.id", ondelete="CASCADE"), nullable=False, unique=True),
         sa.Column("status", sa.String(30), nullable=False),
         sa.Column("completed", sa.Integer(), nullable=False),
         sa.Column("total", sa.Integer(), nullable=False),

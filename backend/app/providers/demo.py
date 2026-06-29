@@ -127,6 +127,6 @@ class DemoProvider(SourceProvider):
 
 
 providers: dict[str, SourceProvider] = {
-    "classics-a": DemoProvider("classics-a", "古籍书源 A"),
-    "classics-b": DemoProvider("classics-b", "古籍书源 B", 0.06),
+    "classics-a": DemoProvider("classics-a", "内置公版书库"),
+    "classics-b": DemoProvider("classics-b", "内置公版镜像", 0.06),
 }

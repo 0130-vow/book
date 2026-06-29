@@ -64,7 +64,7 @@ onMounted(async () => {
             <h3>{{ book.title }}</h3>
             <p>{{ book.author || "佚名" }}</p>
             <div class="progress-track">
-              <span :style="{ width: `${Math.round((book.progress.position || 0) * 100)}%` }" />
+              <span :style="{ width: `${Math.round((book.progress.progress || 0) * 100)}%` }" />
             </div>
             <small>第 {{ (book.progress.chapter_index || 0) + 1 }} 章</small>
           </div>

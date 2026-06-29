@@ -1,5 +1,6 @@
 import asyncio
 import json
+import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
@@ -24,6 +25,7 @@ from .schemas import (
     DownloadOut,
     ProgressIn,
     SourceOut,
+    SourcePatch,
 )
 
 @asynccontextmanager
@@ -42,11 +44,28 @@ async def lifespan(_: FastAPI):
                         base_url=provider.base_url,
                     )
                 )
+        interrupted = list(
+            db.scalars(
+                select(DownloadJob).where(
+                    DownloadJob.status.in_(["queued", "downloading"])
+                )
+            )
+        )
+        for job in interrupted:
+            job.status = "failed"
+            job.error = "服务曾重启，请点击重试"
+            job.updated_at = utcnow()
         db.commit()
     yield
 
 
-app = FastAPI(title=settings.app_name, version="1.1.0", lifespan=lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    version="1.1.0",
+    lifespan=lifespan,
+    docs_url=None if settings.auth_enabled else "/docs",
+    redoc_url=None,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -64,7 +83,7 @@ async def token_auth(request: Request, call_next):
         and request.url.path != "/api/health"
     ):
         supplied = request.headers.get("X-BookHub-Token", "")
-        if supplied != settings.token:
+        if not secrets.compare_digest(supplied, settings.token):
             return JSONResponse(status_code=401, content={"detail": "Token 无效"})
     return await call_next(request)
 
@@ -86,6 +105,19 @@ def list_sources(db: Session = Depends(get_db)):
     return list(db.scalars(select(Source).order_by(Source.id)))
 
 
+@app.patch("/api/sources/{identifier}", response_model=SourceOut)
+def patch_source(
+    identifier: str, payload: SourcePatch, db: Session = Depends(get_db)
+):
+    item = db.scalar(select(Source).where(Source.identifier == identifier))
+    if not item:
+        raise HTTPException(status_code=404, detail="未知书源")
+    item.enabled = payload.enabled
+    db.commit()
+    db.refresh(item)
+    return item
+
+
 @app.get("/api/search", response_model=list[BookBrief])
 async def search_books(
     keyword: str = Query(min_length=1, max_length=100),
@@ -93,7 +125,27 @@ async def search_books(
     db: Session = Depends(get_db),
 ):
     normalized = keyword.strip().lower()
-    cache_key = f"{source or '*'}:{normalized}"
+    source_rows = {
+        item.identifier: item for item in db.scalars(select(Source).order_by(Source.id))
+    }
+    if source:
+        row = source_rows.get(source)
+        if not row:
+            raise HTTPException(status_code=404, detail="未知书源")
+        if not row.enabled:
+            raise HTTPException(status_code=409, detail="书源已停用")
+        selected = [get_provider(source)]
+        enabled_signature = source
+    else:
+        enabled_ids = [
+            identifier
+            for identifier, row in source_rows.items()
+            if row.enabled and identifier in providers
+        ]
+        selected = [providers[identifier] for identifier in enabled_ids]
+        enabled_signature = ",".join(sorted(enabled_ids))
+
+    cache_key = f"{enabled_signature}:{normalized}"
     cached = db.scalar(select(SearchCache).where(SearchCache.cache_key == cache_key))
     now = datetime.now(timezone.utc)
     if cached:
@@ -103,18 +155,21 @@ async def search_books(
         if expires > now:
             return [BookBrief.model_validate(item) for item in json.loads(cached.payload)]
 
-    selected = [get_provider(source)] if source else list(providers.values())
-
     async def safe_search(provider):
         try:
-            return await asyncio.wait_for(
+            results = await asyncio.wait_for(
                 provider.search(normalized), timeout=settings.source_timeout
             )
+            return provider.identifier, results, True
         except Exception:
-            return []
+            return provider.identifier, [], False
 
     batches = await asyncio.gather(*(safe_search(provider) for provider in selected))
-    results = [item for batch in batches for item in batch]
+    results = [item for _, batch, _ in batches for item in batch]
+    for identifier, _, healthy in batches:
+        row = source_rows.get(identifier)
+        if row:
+            row.healthy = healthy
     payload = json.dumps([item.model_dump() for item in results], ensure_ascii=False)
     if cached:
         cached.payload = payload
@@ -256,6 +311,7 @@ def remove_from_bookshelf(book_id: int, db: Session = Depends(get_db)):
     book = db.get(Bookshelf, book_id)
     if not book:
         raise HTTPException(status_code=404, detail="书架中没有这本书")
+    db.execute(delete(DownloadJob).where(DownloadJob.book_id == book_id))
     db.execute(delete(Chapter).where(Chapter.book_id == book_id))
     db.delete(book)
     db.commit()
@@ -277,6 +333,10 @@ def save_progress(payload: ProgressIn, db: Session = Depends(get_db)):
     data = json.loads(book.source_data or "{}")
     data[payload.source] = {
         **payload.model_dump(exclude={"book_id", "source"}),
+        "progress": min(
+            1,
+            (payload.chapter_index + payload.position) / payload.total_chapters,
+        ),
         "updated_at": utcnow().isoformat(),
     }
     book.source_data = json.dumps(data, ensure_ascii=False)

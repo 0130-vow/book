@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import { CheckCircle2, KeyRound, LogOut, Server } from "lucide-vue-next";
 import { useRouter } from "vue-router";
-import { showSuccessToast } from "vant";
+import { showFailToast, showSuccessToast } from "vant";
 import { api, TOKEN_KEY } from "../api";
 import PageHeader from "../components/PageHeader.vue";
 import type { Source } from "../types";
@@ -10,15 +10,33 @@ import type { Source } from "../types";
 const router = useRouter();
 const sources = ref<Source[]>([]);
 const token = ref(localStorage.getItem(TOKEN_KEY) || "");
+const updatingSource = ref("");
 
-function saveToken() {
-  localStorage.setItem(TOKEN_KEY, token.value.trim());
-  showSuccessToast("Token 已更新");
+async function saveToken() {
+  try {
+    await api.verifyToken(token.value.trim());
+    localStorage.setItem(TOKEN_KEY, token.value.trim());
+    showSuccessToast("Token 已更新");
+  } catch {
+    showFailToast("Token 无效");
+  }
 }
 
 function logout() {
   localStorage.removeItem(TOKEN_KEY);
   location.href = "/";
+}
+
+async function toggleSource(source: Source) {
+  updatingSource.value = source.identifier;
+  try {
+    const updated = await api.patchSource(source.identifier, !source.enabled);
+    Object.assign(source, updated);
+  } catch {
+    showFailToast("书源状态更新失败");
+  } finally {
+    updatingSource.value = "";
+  }
 }
 
 onMounted(async () => {
@@ -40,7 +58,13 @@ onMounted(async () => {
       <div class="settings-heading"><Server :size="20" /><div><h2>书源状态</h2><p>聚合搜索与章节服务</p></div></div>
       <div class="source-list">
         <div v-for="source in sources" :key="source.identifier">
-          <span><CheckCircle2 :size="17" />{{ source.name }}</span><strong>{{ source.healthy ? "正常" : "异常" }}</strong>
+          <span><CheckCircle2 :size="17" />{{ source.name }} <strong>{{ source.healthy ? "正常" : "异常" }}</strong></span>
+          <van-switch
+            :model-value="source.enabled"
+            :loading="updatingSource === source.identifier"
+            size="20px"
+            @click="toggleSource(source)"
+          />
         </div>
       </div>
     </section>

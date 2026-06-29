@@ -40,6 +40,10 @@ class SourceOut(BaseModel):
     healthy: bool
 
 
+class SourcePatch(BaseModel):
+    enabled: bool
+
+
 class DownloadOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -93,6 +97,7 @@ class ProgressIn(BaseModel):
     source: str
     chapter_id: str
     chapter_index: int = Field(ge=0)
+    total_chapters: int = Field(ge=1)
     position: float = Field(default=0, ge=0, le=1)
     mode: Literal["scroll", "page"] = "scroll"
 

@@ -16,16 +16,31 @@ http.interceptors.request.use((config) => {
   if (token) config.headers["X-BookHub-Token"] = token;
   return config;
 });
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && localStorage.getItem(TOKEN_KEY)) {
+      localStorage.removeItem(TOKEN_KEY);
+      window.location.replace("/");
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const api = {
   async verifyToken(token: string) {
-    const response = await http.get<Source[]>("/sources", {
-      headers: { "X-BookHub-Token": token }
+    const response = await fetch("/api/sources", {
+      headers: { "X-BookHub-Token": token },
+      cache: "no-store"
     });
-    return response.data;
+    if (!response.ok) throw new Error("Token invalid");
+    return (await response.json()) as Source[];
   },
   async sources() {
     return (await http.get<Source[]>("/sources")).data;
+  },
+  async patchSource(identifier: string, enabled: boolean) {
+    return (await http.patch<Source>(`/sources/${identifier}`, { enabled })).data;
   },
   async search(keyword: string, source?: string) {
     return (
@@ -75,6 +90,7 @@ export const api = {
     source: string;
     chapter_id: string;
     chapter_index: number;
+    total_chapters: number;
     position: number;
     mode: "scroll" | "page";
   }) {
