@@ -1,0 +1,2 @@
+"""BookHub backend package."""
+

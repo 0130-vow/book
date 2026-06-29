@@ -1,0 +1,39 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: bookhub-backend
+    restart: unless-stopped
+    environment:
+      BOOKHUB_TOKEN: ${BOOKHUB_TOKEN:?Set BOOKHUB_TOKEN in .env}
+      BOOKHUB_AUTH_ENABLED: ${BOOKHUB_AUTH_ENABLED:-true}
+      BOOKHUB_DATA_DIR: /data
+      BOOKHUB_CORS_ORIGINS: http://localhost
+    volumes:
+      - bookhub-data:/data
+    networks:
+      - bookhub
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: bookhub-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${BOOKHUB_PORT:-8090}:80"
+    networks:
+      - bookhub
+
+networks:
+  bookhub:
+
+volumes:
+  bookhub-data:
