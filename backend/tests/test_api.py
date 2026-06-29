@@ -91,7 +91,7 @@ def test_docs_are_disabled_when_auth_is_enabled(client):
 
 def test_disabled_source_is_excluded_from_search(client, auth_headers):
     response = client.patch(
-        "/api/sources/classics-b",
+        "/api/sources/gutendex",
         headers=auth_headers,
         json={"enabled": False},
     )
@@ -105,7 +105,7 @@ def test_disabled_source_is_excluded_from_search(client, auth_headers):
 
     disabled = client.get(
         "/api/search",
-        params={"keyword": "三国", "source": "classics-b"},
+        params={"keyword": "三国", "source": "gutendex"},
         headers=auth_headers,
     )
     assert disabled.status_code == 409

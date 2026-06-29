@@ -44,6 +44,13 @@ async def lifespan(_: FastAPI):
                         base_url=provider.base_url,
                     )
                 )
+            else:
+                existing.name = provider.name
+                existing.base_url = provider.base_url
+        for source in db.scalars(select(Source)):
+            if source.identifier not in providers:
+                source.enabled = False
+                source.healthy = False
         interrupted = list(
             db.scalars(
                 select(DownloadJob).where(
@@ -61,7 +68,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    version="1.1.0",
+    version="1.2.0",
     lifespan=lifespan,
     docs_url=None if settings.auth_enabled else "/docs",
     redoc_url=None,
@@ -97,12 +104,18 @@ def get_provider(source: str):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "app": settings.app_name, "version": "1.1.0"}
+    return {"status": "ok", "app": settings.app_name, "version": "1.2.0"}
 
 
 @app.get("/api/sources", response_model=list[SourceOut])
 def list_sources(db: Session = Depends(get_db)):
-    return list(db.scalars(select(Source).order_by(Source.id)))
+    return list(
+        db.scalars(
+            select(Source)
+            .where(Source.identifier.in_(list(providers)))
+            .order_by(Source.id)
+        )
+    )
 
 
 @app.patch("/api/sources/{identifier}", response_model=SourceOut)
@@ -110,7 +123,7 @@ def patch_source(
     identifier: str, payload: SourcePatch, db: Session = Depends(get_db)
 ):
     item = db.scalar(select(Source).where(Source.identifier == identifier))
-    if not item:
+    if not item or identifier not in providers:
         raise HTTPException(status_code=404, detail="未知书源")
     item.enabled = payload.enabled
     db.commit()
@@ -130,7 +143,7 @@ async def search_books(
     }
     if source:
         row = source_rows.get(source)
-        if not row:
+        if not row or source not in providers:
             raise HTTPException(status_code=404, detail="未知书源")
         if not row.enabled:
             raise HTTPException(status_code=409, detail="书源已停用")

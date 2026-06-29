@@ -16,6 +16,12 @@ def client(tmp_path: Path):
 
     from app.database import Base, engine
     from app.main import app
+    from app.providers import providers
+
+    async def offline_search(_keyword: str):
+        return []
+
+    providers["gutendex"].search = offline_search
 
     Base.metadata.drop_all(engine)
     with TestClient(app) as test_client:

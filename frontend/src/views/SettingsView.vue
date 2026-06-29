@@ -46,7 +46,7 @@ onMounted(async () => {
 
 <template>
   <div class="page settings-page">
-    <PageHeader title="系统设置" subtitle="BOOKHUB V1.1" />
+    <PageHeader title="系统设置" subtitle="BOOKHUB V1.2" />
     <section class="settings-section">
       <div class="settings-heading"><KeyRound :size="20" /><div><h2>访问 Token</h2><p>用于所有设备的私有访问认证</p></div></div>
       <div class="token-row">

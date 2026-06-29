@@ -5,15 +5,17 @@ import { useRoute, useRouter } from "vue-router";
 import { showFailToast, showSuccessToast } from "vant";
 import { api } from "../api";
 import BookCover from "../components/BookCover.vue";
-import type { BookDetail, ShelfBook } from "../types";
+import type { BookBrief, BookDetail, ShelfBook } from "../types";
 
 const route = useRoute();
 const router = useRouter();
 const source = computed(() => String(route.params.source));
 const id = computed(() => String(route.params.id));
 const book = ref<BookDetail>();
+const alternatives = ref<BookBrief[]>([]);
 const shelfBook = ref<ShelfBook>();
 const loading = ref(true);
+const error = ref("");
 
 async function refreshShelf() {
   const shelf = await api.shelf();
@@ -47,7 +49,18 @@ async function download() {
 
 onMounted(async () => {
   try {
-    [book.value] = await Promise.all([api.detail(source.value, id.value), refreshShelf()]);
+    const loaded = await api.detail(source.value, id.value);
+    book.value = loaded;
+    await refreshShelf();
+    const matches = await api.search(loaded.title);
+    const normalizedTitle = loaded.title.trim().toLocaleLowerCase();
+    alternatives.value = matches.filter(
+      (item) =>
+        item.source !== source.value &&
+        item.title.trim().toLocaleLowerCase() === normalizedTitle
+    );
+  } catch {
+    error.value = "书籍信息暂时无法载入";
   } finally {
     loading.value = false;
   }
@@ -60,6 +73,12 @@ onMounted(async () => {
       <ArrowLeft :size="21" />
     </button>
     <van-skeleton v-if="loading" title avatar :row="8" />
+    <div v-else-if="error" class="empty-state">
+      <BookOpen :size="30" />
+      <h3>{{ error }}</h3>
+      <p>请稍后重试，或返回选择其他来源。</p>
+      <van-button size="small" @click="router.back()">返回</van-button>
+    </div>
     <template v-else-if="book">
       <section class="book-hero">
         <BookCover :src="book.cover" :title="book.title" size="lg" />
@@ -82,6 +101,24 @@ onMounted(async () => {
               <Download :size="20" />
             </button>
           </div>
+        </div>
+      </section>
+
+      <section class="source-switcher">
+        <div>
+          <p class="eyebrow">READING SOURCE</p>
+          <h2>阅读来源</h2>
+        </div>
+        <div class="source-options">
+          <button class="active" type="button">{{ book.source_name }}</button>
+          <button
+            v-for="item in alternatives"
+            :key="`${item.source}-${item.external_id}`"
+            type="button"
+            @click="router.push(`/book/${item.source}/${item.external_id}`)"
+          >
+            {{ item.source_name }}
+          </button>
         </div>
       </section>
 

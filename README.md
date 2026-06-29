@@ -13,7 +13,12 @@ BookHub 是一个单用户、可私有部署的数字阅读聚合平台。它提
 - FastAPI + SQLAlchemy + SQLite
 - Vue 3 + TypeScript + Vant 4
 
-当前仓库自带两个内置公版演示适配器，用于完整验证聚合、阅读和离线流程；它们不抓取第三方小说站。生产使用前请按下方接口接入你有权访问的内容来源。
+当前内置两个来源：
+
+- 中文公版书库：随服务部署，可离线使用
+- Project Gutenberg：通过 Gutendex API 搜索并读取公版电子书
+
+旧版重复演示镜像升级后会自动停用，不影响已有书架中的 `classics-a` 记录。
 
 ## 快速启动
 
@@ -62,7 +67,7 @@ Vite 会将 `/api` 代理到 `127.0.0.1:8000`。
 
 ## 书源适配
 
-实现 `backend/app/providers/base.py` 中的 `SourceProvider`，再在 provider 注册表中加入实例即可。每个书源需要提供搜索、详情、目录和章节正文四个方法。请遵守来源站点的服务条款、robots 规则和内容版权要求。
+实现 `backend/app/providers/base.py` 中的 `SourceProvider`，再在 `backend/app/providers/__init__.py` 注册实例即可。每个书源需要提供搜索、详情、目录和章节正文四个方法。外部正文 URL 应限制可信域名，HTTP 异常应转换为明确的上游错误。请遵守来源站点的服务条款、robots 规则和内容版权要求。
 
 ## 数据
 

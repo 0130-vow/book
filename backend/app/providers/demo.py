@@ -124,9 +124,3 @@ class DemoProvider(SourceProvider):
             book_external_id=detail.external_id,
             content=content,
         )
-
-
-providers: dict[str, SourceProvider] = {
-    "classics-a": DemoProvider("classics-a", "内置公版书库"),
-    "classics-b": DemoProvider("classics-b", "内置公版镜像", 0.06),
-}
